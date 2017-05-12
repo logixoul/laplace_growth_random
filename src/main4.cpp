@@ -29,6 +29,7 @@ gl::Texture texToDraw;
 bool texOverride = false;
 
 Array2D<float> img(sx, sy);
+Array2D<float> img_coloring(sx, sy);
 
 float mouseX, mouseY;
 bool pause;
@@ -172,6 +173,7 @@ struct SApp : AppBasic {
 					cout << "dot " << dot << endl;*/
 				if(dot > 0)
 					img(p) += dot * 5.0;
+				img_coloring(p) = dot;
 			}
 			float sum = std::accumulate(img.begin(), img.end(), 0.0f);
 			float avg = sum / (float)img.area;
@@ -209,16 +211,43 @@ struct SApp : AppBasic {
 	}
 	void renderIt() {
 		auto tex = gtex(img);
+		auto tex_coloring = gtex(img_coloring);
 
 		auto texb = gpuBlur2_4::run(tex, 6);
 
-		tex = shade2(tex, texb,
-			"vec3 f1 = fetch3();"
-			"vec3 f2 = fetch3(tex2);"
-			"vec3 c = .5 * f1 / f2;"
-			"c /= c + vec3(1.0);"
+		static auto gradientMap = gl::Texture(ci::loadImage("gradient.png"));
+
+		auto texAdapted = shade2(tex, texb,
+			"vec3 f = fetch3();"
+			"vec3 fb = fetch3(tex2);"
+			"_out = .5 * f / fb;");
+		
+	tex = shade2(texAdapted, gradientMap,
+			"float f = fetch1();"
+			"f /= f + 1.0;"
+			"f *= 1.3;"
+			//"vec3 gradientMapC = fetch3(tex2, vec2(f, 0));"
+			//"vec3 c = gradientMapC;"
+			"vec3 c = vec3(f);"
 			"_out = c;"
 			);
+
+		/*auto texForB = shade2(tex, texAdapted,
+			"vec3 c = fetch3();"
+			"float fAdapted = fetch1(tex2);"
+			"float lum = pow(fAdapted+1.0, 3.0)-1.0;"
+			"_out = c * lum;"
+			);*/
+
+		/*texb = gpuBlur2_4::run(tex, 4);
+
+		tex = shade2(tex, texb,
+			"vec3 f = fetch3();"
+			"vec3 fb = fetch3(tex2);"
+			"vec3 c = (f + fb) * .5;"
+			//"c = pow(c + vec3(1.0), vec3(1.0/5.0)) - vec3(1.0);"
+			"_out = c;"
+			);*/
 
 		gl::draw(tex, getWindowBounds());
 	}
