@@ -27,153 +27,13 @@ float heightmapTimeDim = 0.0f;
 const int MAX_AGE = 100;
 gl::Texture texToDraw;
 bool texOverride = false;
-gl::GlslProg shader;
 
-Array2D<float> img2(sx, sy); // heightmap based on tex rgb
+Array2D<float> img(sx, sy);
 
 float mouseX, mouseY;
 bool pause;
 bool keys2[256];
 
-Vec3f complexToColor_HSV(Vec2f comp) {
-	float hue = (float)M_PI+(float)atan2(comp.y,comp.x);
-	hue /= (float)(2*M_PI);
-	float lightness = comp.length();
-	//lightness /= lightness + 1.0f;
-	HslF hsl(hue, 1.0f, lightness);
- 	return FromHSL(hsl);
-}
-
-Vec3f complexToColor(Vec2f comp) {
-	float hue = (float)M_PI+(float)atan2(comp.y,comp.x);
-	hue /= (float)(2*M_PI);
-	float lightness = comp.length();
-	//lightness = .5f;
-	//lightness /= lightness + 1.0f;
-	//HslF hsl(hue, 1.0f, lightness);
- 	//return FromHSL(hsl);
-	Vec3f colors[] = {
-		//Vec3f(0,0,0),
-		Vec3f(15,131,174),
-		Vec3f(246,24,199),
-		Vec3f(148,255,171),
-		Vec3f(251,253,84)
-	};
-	int colorCount = 4;
-	float pos = hue*(colorCount - .01f);
-	int posint1 = floor(pos);
-	int posint2 = (posint1 + 1) % colorCount;
-	float posFract = pos - posint1;
-	Vec3f color1 = colors[posint1];
-	Vec3f color2 = colors[posint2];
-	return lerp(color1, color2, posFract) / 255.0f;
-}
-
-struct Walker {
-	Vec2f pos;
-	int age;
-	Vec3f color;
-	Vec2f lastMove;
-
-	float alpha() {
-		return min((age/(float)MAX_AGE)*5.0, 1.0);
-	}
-
-	Walker() {
-		pos = Vec2f(ci::randFloat(0, sx), ci::randFloat(0, sy));
-		age = ci::randInt(0, MAX_AGE);
-		lastMove = Vec2f::zero();
-	}
-	static float noiseXAt(Vec2f p) {
-		int numDetailsX = 5;
-		float nscale = numDetailsX / (float)sx;
-		float noiseX = ::octave_noise_3d(3, .5, 1.0, p.x * nscale, p.y * nscale, noiseTimeDim);
-		return noiseX;
-	}
-	
-	static float noiseYAt(Vec2f p) {
-		int numDetailsX = 5;
-		float nscale = numDetailsX / (float)sx;
-		float noiseY = ::octave_noise_3d(3, .5, 1.0, p.x * nscale, p.y * nscale + numDetailsX, noiseTimeDim);
-		return noiseY;
-	}
-	Vec2f noiseVec2fAt(Vec2f p) {
-		return Vec2f(noiseXAt(p), noiseYAt(p));
-	}
-	Vec2f curlNoiseVec2fAt(Vec2f p) {
-		float eps = 1;
-		float noiseXAbove = noiseXAt(p - Vec2f(0, eps));
-		float noiseXBelow = noiseXAt(p + Vec2f(0, eps));
-		float noiseYOnLeft = noiseYAt(p - Vec2f(eps, 0));
-		float noiseYOnRight = noiseYAt(p + Vec2f(eps, 0));
-		return Vec2f(noiseXBelow - noiseXAbove, -(noiseYOnRight - noiseYOnLeft)) / (2.0f * eps);
-	}
-	void update() {
-		Vec2f toAdd = curlNoiseVec2fAt(pos) * 50.0f;
-		//toAdd.y -= 1.0f;
-		pos += toAdd / scale;
-		color = complexToColor_HSV(toAdd);
-		lastMove = toAdd;
-		//color = Vec3f::one();
-
-		if(pos.x < 0) pos.x += sx;
-		if(pos.y < 0) pos.y += sy;
-		pos.x = fmod(pos.x, sx);
-		pos.y = fmod(pos.y, sy);
-
-		age++;
-	}
-};
-
-vector<Walker> walkers;
-
-// begin 3d heightmap
-
-	Array2D<Vec3f> normals;
-	struct Triangle
-	{
-		Vec3f a, b, c;
-		Vec3f a0, b0, c0;
-		Vec2i ia, ib, ic;
-		Triangle(Vec3f const& a, Vec3f const& b, Vec3f const& c,
-			Vec3f a0, Vec3f b0, Vec3f c0, Vec2i ia, Vec2i ib, Vec2i ic) : a(a), b(b), c(c), a0(a0), b0(b0), c0(c0), ia(ia), ib(ib), ic(ic)
-		{
-
-		}
-	};
-	vector<Triangle> triangles2;
-	Array2D<Triangle> triangles;
-	
-	Vec3f getNormal(Triangle t)
-	{
-		return (t.b-t.c).cross(t.b-t.a).normalized();
-	}
-
-	void calcNormals()
-	{
-		normals = Array2D<Vec3f>(sx, sy);
-		
-		foreach(auto& triangle, triangles2)
-		{
-			auto n6 = getNormal(triangle);
-			normals(triangle.ia) += n6;
-			normals(triangle.ib) += n6;
-			normals(triangle.ic) += n6;
-		}
-		forxy(normals)
-		{
-			normals(p) = normals(p).safeNormalized();
-		}
-	}
-
-	Triangle getTriangle(Vec2i ai, Vec2i bi, Vec2i ci)
-	{
-		Vec3f a(ai.x, ai.y, img2(ai));
-		Vec3f b(bi.x, bi.y, img2(bi));
-		Vec3f c(ci.x, ci.y, img2(ci));
-		return Triangle(a, b, c, a, b, c, ai, bi, ci);
-	}
-// end 3d heightmap
 
 void updateConfig() {
 }
@@ -198,11 +58,10 @@ struct SApp : AppBasic {
 
 		glEnable(GL_POINT_SMOOTH);
 
-		for(int i = 0; i < 4000 /*/ sq(scale)*/; i++) {
-			walkers.push_back(Walker());
+		Vec2f center = Vec2f(img.Size()) / 2.0f;
+		forxy(img) {
+			img(p) = p.distance(center) < sy / 3 ? 1 : 0;
 		}
-
-		shader = gl::GlslProg(loadFile("heightmap.vs"), loadFile("heightmap.fs"));
 	}
 	void keyDown(KeyEvent e)
 	{
@@ -268,9 +127,9 @@ struct SApp : AppBasic {
 
 		mouseX = getMousePos().x / (float)wsx;
 		mouseY = getMousePos().y / (float)wsy;
-		noiseProgressSpeed=cfg1::getOpt("noiseProgressSpeed", .00008f,
+		/*noiseProgressSpeed=cfg1::getOpt("noiseProgressSpeed", .00008f,
 			[&]() { return keys['s']; },
-			[&]() { return expRange(mouseY, 0.01f, 100.0f); });
+			[&]() { return expRange(mouseY, 0.01f, 100.0f); });*/
 		
 		gl::clear(Color(0, 0, 0));
 
@@ -289,139 +148,79 @@ struct SApp : AppBasic {
 	}
 	void updateIt() {
 		if(!pause) {
-			noiseTimeDim += noiseProgressSpeed;
-			heightmapTimeDim += 0.01f;
-			foreach(Walker& walker, walkers) {
-				walker.update();
-				if(walker.age > MAX_AGE) {
-					walker = Walker();
+			img = gaussianBlur(img, 3);
+			Array2D<Vec2f> curvDirs(img.Size(), Vec2f::zero());
+			auto grads = ::get_gradients(img);
+			for(int x = 0; x < sx; x++)
+			{
+				for(int y = 0; y < sy; y++)
+				{
+					Vec2f p = Vec2f(x,y);
+					Vec2f grad = grads(x, y).safeNormalized();
+					grad = Vec2f(-grad.y, grad.x);;
+					Vec2f grad_a = getBilinear(grads, p+grad).safeNormalized();
+					grad_a = -Vec2f(-grad_a.y, grad_a.x);
+					Vec2f grad_b = getBilinear(grads, p-grad).safeNormalized();
+					grad_b = Vec2f(-grad_b.y, grad_b.x);
+					Vec2f dir = grad_a + grad_b;
+					curvDirs(x, y) = dir;
+				}
+			}
+			forxy(img) {
+				float dot = curvDirs(p).dot(grads(p));
+				/*if(dot != 0)
+					cout << "dot " << dot << endl;*/
+				if(dot > 0)
+					img(p) += dot * 5.0;
+			}
+			float sum = std::accumulate(img.begin(), img.end(), 0.0f);
+			float avg = sum / (float)img.area;
+			forxy(img)
+			{
+				float f = img(p);
+				f += .5f - avg;
+				img(p) = f;
+			}
+			img = to01(img);
+			/*forxy(img) {
+				img(p) = lerp(img(p), imgb(p), .1f);
+			}*/
+
+			if(mouseDown_[0])
+			{
+				cout << "down" << endl;
+				Vec2f scaledm = Vec2f(mouseX * (float)sx, mouseY * (float)sy);
+				Area a(scaledm, scaledm);
+				int r = 5;
+				a.expand(r, r);
+				for(int x = a.x1; x <= a.x2; x++)
+				{
+					for(int y = a.y1; y <= a.y2; y++)
+					{
+						Vec2f v = Vec2f(x, y) - scaledm;
+						float w = max(0.0f, 1.0f - v.length() / r);
+						w = 3 * w * w - 2 * w * w * w;
+						w=max(0.0f,w);
+						img.wr(x, y) += 1.f * w;
+					}
 				}
 			}
 		}
-	}
-	Array2D<float> getKernel(Vec2i size) {
-		Array2D<float> sdKernel(size);
-		forxy(sdKernel) {
-			//auto p2=p;if(p2.x>sdKernel.w/2)p2.x-=sdKernel.w;if(p2.y>sdKernel.h/2)p2.y-=sdKernel.h;
-			float dist = p.distance(sdKernel.Size()/2);
-			//sdKernel(p) = 1.0 / (.01f + (p2-Vec2i(3, 3)).length()/10.0f);
-			sdKernel(p) = 1.0 / pow((1.f + dist*5.0f), 3.0f);
-			//sdKernel(p) = dist > 10 ? 0 : 1;
-			//sdKernel(p) = expf(-p2.lengthSquared()*.02f);
-			//if(p == Vec2i::zero()) sdKernel(p) = 1.0f;
-			//else sdKernel(p) = 0.0f;
-		}
-		auto kernelInvSum = 1.0/(std::accumulate(sdKernel.begin(), sdKernel.end(), 0.0f));
-		forxy(sdKernel) { sdKernel(p) *= kernelInvSum; }
-		return sdKernel;
 	}
 	void renderIt() {
-		static Array2D<float> sizeSource(sx, sy);
-		static auto sizeSourceTex = gtex(sizeSource);
-		string bg = "vec3 bg = vec3(0.0);";
-		static auto walkerTex = shade2(sizeSourceTex, "_out = bg;", ShadeOpts(), bg);
-		if(!pause) {
-			walkerTex = shade2(walkerTex, "_out = mix(fetch3(), bg, .01);", ShadeOpts(), bg);
-			glPushAttrib(GL_ALL_ATTRIB_BITS);
-			glUseProgram(0);
-			glPointSize(1);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			//glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-			glEnable(GL_BLEND);
-			{
-				beginRTT(walkerTex);
-				{
-					gl::pushMatrices();
-					gl::setMatricesWindow(sx, sy, true);
-					{
-						glBegin(GL_POINTS);
-						{
-							foreach(Walker& walker, walkers) {
-								auto& c = walker.color;
-								c *= 20.0;
-								glColor4f(c.x, c.y, c.z, walker.alpha());
-								glVertex2f(walker.pos);
-							}
-						}
-						glEnd();
-					}
-					gl::popMatrices();
-				}
-				endRTT();
-			}
-			glPopAttrib();
-		}
-		if(getElapsedFrames() > 50)
-		{
-			auto walkerImg = gettexdata<Vec3f>(walkerTex, GL_RGB, GL_FLOAT, walkerTex.getCleanBounds());
-			cv::Mat_<cv::Vec3f> walkerMat(walkerImg.h, walkerImg.w, (cv::Vec3f*)walkerImg.data);
-			static Array2D<float> kernel = getKernel(Vec2i(20, 20));
-			static cv::Mat_<float> kernelMat(kernel.h, kernel.w, kernel.data);
-				cv::filter2D(walkerMat, walkerMat, -1, kernelMat, cv::Point(-1, -1), 0, cv::BORDER_WRAP);
-			walkerTex = gtex(walkerImg);
-		}
-		auto walkerImg = gettexdata<Vec3f>(walkerTex, GL_RGB, GL_FLOAT, walkerTex.getCleanBounds());
-		forxy(img2)
-		{
-			
-			/*int numDetailsX = 5;
-			float nscale = numDetailsX / (float)sx;
-			float f = ::octave_noise_3d(3, .5, 1.0, p.x * nscale, p.y * nscale, heightmapTimeDim);
-			//float f = Walker::noiseXAt(p);
-			f = f * .5 + .5;
-			f = pow(f, 4.0f);
-			img2(p) = f * 40.0;*/
-			float f = walkerImg(p).dot(Vec3f::one()*1.0/3.0) * 1.0;
-			f = pow(f, 1.0f / 3.0f) * 2.0f;
-			img2(p) = f;
-		}
-		
-		CameraPersp camera;
-		Vec3f toLookAt(sx/2, sy/2+60, 0.0f);
-		Vec3f cameraPos(toLookAt.x, toLookAt.y+50, sx / 4-10);
-		camera.lookAt(cameraPos, toLookAt, Vec3f::zAxis());
-		camera.setAspectRatio(getWindowAspectRatio());
-		camera.setFov(90.0f); // degrees
+		auto tex = gtex(img);
 
-		triangles2.clear();
-		for(int x = 0; x < sx - 1; x++)
-		{
-			for(int y = 0; y < sy - 1; y++)
-			{
-				Vec2i index(x, y);
-				triangles2.push_back(getTriangle(Vec2i(x, y + 1), Vec2i(x, y), Vec2i(x + 1, y)));
-				triangles2.push_back(getTriangle(Vec2i(x, y + 1), Vec2i(x + 1, y), Vec2i(x + 1, y + 1)));
-			}
-		}
-		calcNormals();
-		shader.bind();
-		shader.uniform("tex", 0); walkerTex.bind(0);
-		shader.uniform("mouse", Vec2f(mouseX, mouseY));
-		shader.uniform("time", (float)getElapsedSeconds());
-		shader.uniform("viewportSize", (Vec2f)getWindowSize());
-		shader.uniform("lightOrbitCenter", Vec2f(sx, sy) / 2.0);
-		
-		glPushAttrib(GL_ALL_ATTRIB_BITS);
-		glEnable(GL_DEPTH_TEST);
-		glDepthFunc(GL_LESS);
-		glEnable(GL_CULL_FACE);
-		gl::pushMatrices();
-		gl::setMatrices(camera);
-		glBegin(GL_TRIANGLES);
-		foreach(auto& triangle, triangles2)
-		{
-			Vec3f c = normals(triangle.ia);
-			glColor3f(c.x, c.y, c.z);
-			glTexCoord2f(Vec2f(triangle.ia)/Vec2f(sx, sy)); glNormal3f(normals(triangle.ia)); glVertex3f(triangle.a);
-			glTexCoord2f(Vec2f(triangle.ib)/Vec2f(sx, sy)); glNormal3f(normals(triangle.ib)); glVertex3f(triangle.b);
-			glTexCoord2f(Vec2f(triangle.ib)/Vec2f(sx, sy)); glNormal3f(normals(triangle.ic)); glVertex3f(triangle.c);
-		}
-		glEnd();
-		gl::popMatrices();
-		glPopAttrib();
-		gl::GlslProg::unbind();
+		auto texb = gpuBlur2_4::run(tex, 6);
 
-		//gl::draw(walkerTex2, getWindowBounds());
+		tex = shade2(tex, texb,
+			"vec3 f1 = fetch3();"
+			"vec3 f2 = fetch3(tex2);"
+			"vec3 c = .5 * f1 / f2;"
+			"c /= c + vec3(1.0);"
+			"_out = c;"
+			);
+
+		gl::draw(tex, getWindowBounds());
 	}
 #endif
 };
