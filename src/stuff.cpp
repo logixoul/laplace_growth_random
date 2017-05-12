@@ -58,7 +58,7 @@ vector<float> getGaussianKernel(int ksize, float sigma) {
 	return result;
 }
 
-float sigmaFromKsize(int ksize) {
+float sigmaFromKsize(float ksize) {
 	float sigma = 0.3*((ksize-1)*0.5 - 1) + 0.8;
 	return sigma;
 }

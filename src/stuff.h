@@ -777,7 +777,7 @@ float sq(float f);
 
 vector<float> getGaussianKernel(int ksize, float sigma); // ksize must be odd
 
-float sigmaFromKsize(int ksize);// ksize must be odd
+float sigmaFromKsize(float ksize);
 
 float ksizeFromSigma(float sigma);
 

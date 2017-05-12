@@ -149,7 +149,9 @@ struct SApp : AppBasic {
 	}
 	void updateIt() {
 		if(!pause) {
-			img = gaussianBlur(img, 3);
+			int ksize = 3;
+			float sigma = sigmaFromKsize(2);
+			img = separableConvolve<float, WrapModes::GetWrapped>(img, getGaussianKernel(ksize, sigma));
 			Array2D<Vec2f> curvDirs(img.Size(), Vec2f::zero());
 			auto grads = ::get_gradients(img);
 			for(int x = 0; x < sx; x++)
