@@ -172,7 +172,7 @@ struct SApp : AppBasic {
 				/*if(dot != 0)
 					cout << "dot " << dot << endl;*/
 				if(dot > 0) {
-					img(p) += dot * 5.0;
+					img(p) += dot * 4.0;
 					// //aaPoint(img, Vec2f(p) + grads(p), dot * 10.0f);
 				}
 				img_coloring(p) = dot;
