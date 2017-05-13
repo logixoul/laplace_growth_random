@@ -195,7 +195,7 @@ struct SApp : AppBasic {
 			forxy(img) {
 				float dot = curvDirs(p).dot(grads(p));
 				if(dot < 0) {
-					img(p) += -dot * 4.0 * complexToColor_HSV(curvDirs(p));
+					img(p) += -dot * 3.8 * complexToColor_HSV(curvDirs(p));
 					//if(c != Vec3f::one())
 					//aaPoint(img, Vec2f(p) + curvDirs(p).safeNormalized(), dot * 10.0f);
 				}
