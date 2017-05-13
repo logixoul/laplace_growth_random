@@ -37,12 +37,15 @@ bool keys2[256];
 Vec3f complexToColor_HSV(Vec2f comp) {
 	float hue = (float)M_PI+(float)atan2(comp.y,comp.x);
 	hue /= (float)(2*M_PI);
-	float lightness = comp.length();
+	hue = fmod(hue + .2f, 1.0f);
+	//float lightness = comp.length();
 	//cout << complex << " --> " << color << endl;
 
 	//lightness /= lightness + 1.0f;
-	HslF hsl(hue, 1.0f, lightness * .5);
- 	return FromHSL(hsl) * 2.0f;
+	HslF hsl(hue, 1.0f, .5);
+	auto rgb = FromHSL(hsl);
+	rgb /= rgb.dot(Vec3f::one() / 3.0f);
+	return rgb;
 }
 
 void updateConfig() {
@@ -190,18 +193,18 @@ struct SApp : AppBasic {
 			forxy(img) {
 				float dot = curvDirs(p).dot(grads(p));
 				if(dot < 0) {
-					img(p) += -dot * 4.0 * complexToColor_HSV(curvDirs(p).safeNormalized());
+					img(p) += -dot * 4.0 * complexToColor_HSV(curvDirs(p));
 					//if(c != Vec3f::one())
 					//aaPoint(img, Vec2f(p) + curvDirs(p).safeNormalized(), dot * 10.0f);
 				}
 			}
 			img = to01(img);
 			
-			/*if(mouseDown_[0])
+			if(mouseDown_[0])
 			{
 				Vec2f scaledm = Vec2f(mouseX * (float)sx, mouseY * (float)sy);
 				Area a(scaledm, scaledm);
-				int r = 50;
+				int r = 10;
 				a.expand(r, r);
 				for(int x = a.x1; x <= a.x2; x++)
 				{
@@ -211,10 +214,10 @@ struct SApp : AppBasic {
 						float w = max(0.0f, 1.0f - v.length() / r);
 						w=max(0.0f,w);
 						w = 3 * w * w - 2 * w * w * w;
-						img.wr(x, y) = lerp(img.wr(x, y), 1.0F, w);
+						img.wr(x, y) = lerp(img.wr(x, y), Vec3f::one(), w);
 					}
 				}
-			}*/
+			}
 		}
 	}
 	inline Array2D<Vec3f> to01(Array2D<Vec3f> a) {
@@ -243,12 +246,16 @@ struct SApp : AppBasic {
 		
 		tex = shade2(texAdapted,
 			"vec3 f = fetch3();"
+			/*"float L = getL(f);"*
+			"f /= L + 1.0;"*/
 			"f /= f + vec3(1.0);"
 			"f *= 1.3;"
 			//"vec3 gradientMapC = fetch3(tex2, vec2(f, 0));"
 			//"vec3 c = gradientMapC;"
 			"vec3 c = vec3(f);"
-			"_out = c;"
+			"_out = c;",
+			ShadeOpts(),
+			FileCache::get("stuff.fs")
 			);
 
 		/*auto texForB = shade2(tex, texAdapted,
