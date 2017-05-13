@@ -28,12 +28,22 @@ const int MAX_AGE = 100;
 gl::Texture texToDraw;
 bool texOverride = false;
 
-Array2D<float> img(sx, sy);
+Array2D<Vec3f> img(sx, sy);
 
 float mouseX, mouseY;
 bool pause;
 bool keys2[256];
 
+Vec3f complexToColor_HSV(Vec2f comp) {
+	float hue = (float)M_PI+(float)atan2(comp.y,comp.x);
+	hue /= (float)(2*M_PI);
+	float lightness = comp.length();
+	//cout << complex << " --> " << color << endl;
+
+	//lightness /= lightness + 1.0f;
+	HslF hsl(hue, 1.0f, lightness * .5);
+ 	return FromHSL(hsl) * 2.0f;
+}
 
 void updateConfig() {
 }
@@ -60,7 +70,7 @@ struct SApp : AppBasic {
 
 		Vec2f center = Vec2f(img.Size()) / 2.0f;
 		forxy(img) {
-			img(p) = p.distance(center) < sy / 3 ? 1 : 0;
+			img(p) = Vec3f::one() * (p.distance(center) < sy / 3 ? 1 : 0);
 		}
 	}
 	void keyDown(KeyEvent e)
@@ -137,6 +147,11 @@ struct SApp : AppBasic {
 		
 		renderIt();
 
+		/*float hue = 0;
+		float lightness = .5;
+		HslF hsl(hue, 1.0f, lightness);
+ 		cout << "rgb=" << FromHSL(hsl) << endl;*/
+
 		/*Sleep(50);*/my_console::clr();
 		sw::endFrame();
 		cfg1::print();
@@ -150,9 +165,13 @@ struct SApp : AppBasic {
 		if(!pause) {
 			int ksize = 9;
 			float sigma = sigmaFromKsize(8);
-			img = separableConvolve<float, WrapModes::GetWrapped>(img, getGaussianKernel(ksize, sigma));
+			img = separableConvolve<Vec3f, WrapModes::GetWrapped>(img, getGaussianKernel(ksize, sigma));
+			Array2D<float> imgGrayscale(img.Size(), 0.0f);
+			forxy(imgGrayscale) {
+				imgGrayscale(p) = img(p).dot(Vec3f::one() / 3.0f);
+			}
 			Array2D<Vec2f> curvDirs(img.Size(), Vec2f::zero());
-			auto grads = ::get_gradients(img);
+			auto grads = ::get_gradients(imgGrayscale);
 			for(int x = 0; x < sx; x++)
 			{
 				for(int y = 0; y < sy; y++)
@@ -171,13 +190,16 @@ struct SApp : AppBasic {
 			forxy(img) {
 				float dot = curvDirs(p).dot(grads(p));
 				if(dot < 0) {
-					img(p) += -dot * 4.0;
+					img(p) += -dot * 4.0 * complexToColor_HSV(curvDirs(p).safeNormalized());
+					auto complex = curvDirs(p).safeNormalized();
+					auto color = complexToColor_HSV(complex);
+					//if(c != Vec3f::one())
 					//aaPoint(img, Vec2f(p) + curvDirs(p).safeNormalized(), dot * 10.0f);
 				}
 			}
 			img = to01(img);
 			
-			if(mouseDown_[0])
+			/*if(mouseDown_[0])
 			{
 				Vec2f scaledm = Vec2f(mouseX * (float)sx, mouseY * (float)sy);
 				Area a(scaledm, scaledm);
@@ -194,24 +216,36 @@ struct SApp : AppBasic {
 						img.wr(x, y) = lerp(img.wr(x, y), 1.0F, w);
 					}
 				}
-			}
+			}*/
 		}
+	}
+	inline Array2D<Vec3f> to01(Array2D<Vec3f> a) {
+		auto beginIt = (float*)(a.begin());
+		auto endIt = (float*)(a.end())+2;
+		auto minn = *std::min_element(beginIt, endIt);
+		auto maxx = *std::max_element(beginIt, endIt);
+		auto b = a.clone();
+		forxy(b) {
+			b(p) -= Vec3f::one() * minn;
+			b(p) /= Vec3f::one() * (maxx - minn);
+		}
+		return b;
 	}
 	void renderIt() {
 		auto tex = gtex(img);
 		
 		auto texb = gpuBlur2_4::run(tex, 6);
 
-		static auto gradientMap = gl::Texture(ci::loadImage("gradient.png"));
+		//static auto gradientMap = gl::Texture(ci::loadImage("gradient.png"));
 
 		auto texAdapted = shade2(tex, texb,
 			"vec3 f = fetch3();"
 			"vec3 fb = fetch3(tex2);"
 			"_out = .5 * f / fb;");
 		
-	tex = shade2(texAdapted, gradientMap,
-			"float f = fetch1();"
-			"f /= f + 1.0;"
+		tex = shade2(texAdapted,
+			"vec3 f = fetch3();"
+			"f /= f + vec3(1.0);"
 			"f *= 1.3;"
 			//"vec3 gradientMapC = fetch3(tex2, vec2(f, 0));"
 			//"vec3 c = gradientMapC;"
