@@ -258,6 +258,16 @@ struct SApp : AppBasic {
 			FileCache::get("stuff.fs")
 			);
 
+		texb = gpuBlur2_4::run(tex, 1);
+
+		tex = shade2(tex, texb,
+			"vec3 f = fetch3();"
+			"vec3 fb = fetch3(tex2);"
+			"vec3 diff = f - fb;"
+			"diff = vec3(dot(diff, vec3(1.0/3.0)));"
+			"_out = f + diff * 2.0;"
+			);
+
 		/*auto texForB = shade2(tex, texAdapted,
 			"vec3 c = fetch3();"
 			"float fAdapted = fetch1(tex2);"
