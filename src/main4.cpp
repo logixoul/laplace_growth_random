@@ -29,7 +29,6 @@ gl::Texture texToDraw;
 bool texOverride = false;
 
 Array2D<float> img(sx, sy);
-Array2D<float> img_coloring(sx, sy);
 
 float mouseX, mouseY;
 bool pause;
@@ -171,33 +170,18 @@ struct SApp : AppBasic {
 			}
 			forxy(img) {
 				float dot = curvDirs(p).dot(grads(p));
-				/*if(dot != 0)
-					cout << "dot " << dot << endl;*/
 				if(dot < 0) {
 					img(p) += -dot * 4.0;
 					//aaPoint(img, Vec2f(p) + curvDirs(p).safeNormalized(), dot * 10.0f);
 				}
-				img_coloring(p) = dot;
-			}
-			float sum = std::accumulate(img.begin(), img.end(), 0.0f);
-			float avg = sum / (float)img.area;
-			forxy(img)
-			{
-				float f = img(p);
-				f += .5f - avg;
-				img(p) = f;
 			}
 			img = to01(img);
-			/*forxy(img) {
-				img(p) = lerp(img(p), imgb(p), .1f);
-			}*/
-
+			
 			if(mouseDown_[0])
 			{
-				cout << "down" << endl;
 				Vec2f scaledm = Vec2f(mouseX * (float)sx, mouseY * (float)sy);
 				Area a(scaledm, scaledm);
-				int r = 5;
+				int r = 50;
 				a.expand(r, r);
 				for(int x = a.x1; x <= a.x2; x++)
 				{
@@ -205,8 +189,8 @@ struct SApp : AppBasic {
 					{
 						Vec2f v = Vec2f(x, y) - scaledm;
 						float w = max(0.0f, 1.0f - v.length() / r);
-						w = 3 * w * w - 2 * w * w * w;
 						w=max(0.0f,w);
+						w = 3 * w * w - 2 * w * w * w;
 						img.wr(x, y) = lerp(img.wr(x, y), 1.0F, w);
 					}
 				}
@@ -215,8 +199,7 @@ struct SApp : AppBasic {
 	}
 	void renderIt() {
 		auto tex = gtex(img);
-		auto tex_coloring = gtex(img_coloring);
-
+		
 		auto texb = gpuBlur2_4::run(tex, 6);
 
 		static auto gradientMap = gl::Texture(ci::loadImage("gradient.png"));
