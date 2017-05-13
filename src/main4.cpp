@@ -149,8 +149,8 @@ struct SApp : AppBasic {
 	}
 	void updateIt() {
 		if(!pause) {
-			int ksize = 3;
-			float sigma = sigmaFromKsize(2);
+			int ksize = 9;
+			float sigma = sigmaFromKsize(8);
 			img = separableConvolve<float, WrapModes::GetWrapped>(img, getGaussianKernel(ksize, sigma));
 			Array2D<Vec2f> curvDirs(img.Size(), Vec2f::zero());
 			auto grads = ::get_gradients(img);
@@ -173,8 +173,8 @@ struct SApp : AppBasic {
 				float dot = curvDirs(p).dot(grads(p));
 				/*if(dot != 0)
 					cout << "dot " << dot << endl;*/
-				if(dot > 0) {
-					img(p) += dot * 4.0;
+				if(dot < 0) {
+					img(p) += -dot * 4.0;
 					// //aaPoint(img, Vec2f(p) + grads(p), dot * 10.0f);
 				}
 				img_coloring(p) = dot;
