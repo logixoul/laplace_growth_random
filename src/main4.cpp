@@ -191,8 +191,6 @@ struct SApp : AppBasic {
 				float dot = curvDirs(p).dot(grads(p));
 				if(dot < 0) {
 					img(p) += -dot * 4.0 * complexToColor_HSV(curvDirs(p).safeNormalized());
-					auto complex = curvDirs(p).safeNormalized();
-					auto color = complexToColor_HSV(complex);
 					//if(c != Vec3f::one())
 					//aaPoint(img, Vec2f(p) + curvDirs(p).safeNormalized(), dot * 10.0f);
 				}
