@@ -15,6 +15,8 @@
 #include "colorspaces.h"
 #include "easyfft.h"
 
+#define GLSL(sh) #sh
+
 int wsx=800, wsy = 800 * (800.0f / 1280.0f);
 int scale = 2;
 int sx = wsx / scale;
@@ -267,6 +269,44 @@ struct SApp : AppBasic {
 			"diff = vec3(dot(diff, vec3(1.0/3.0)));"
 			"_out = f + diff * 2.0;"
 			);
+
+		/*tex = shade2(tex,
+			"vec3 f = fetch3();"
+			"f /= pow(dot(f, vec3(1.0/3.0)), .3);"
+			"f *= .7;"
+			"vec3 grad = g();"
+			"f *= .5 + max(0.0, dot(grad, H));"
+			"f += getSpecular(grad);"
+			//"f = smoothstep(.0, 1., f);"
+			"_out = f;"
+			, ShadeOpts(),
+			GLSL(
+				// https://www.shadertoy.com/view/4ttXzj
+				vec3 ld = normalize(vec3(1.0, 2.0, 3.));
+				vec3 v = normalize(vec3(tc, 1.));
+				vec3 H = normalize(ld + v);
+				float fbm(vec2 uv) {
+					vec3 c = fetch3(tex, uv);
+					return dot(c, vec3(1.0/3.0)) * .09;
+				}
+				vec3 g()
+				{
+					vec2 off = vec2(0.0, .03);
+					float t = fbm(tc);
+					float x = t - fbm(tc + vec2(tsize.x, 0));
+					float y = t - fbm(tc + vec2(tsize.y, 0));
+					vec3 xv = vec3(tsize.x, x, 0);
+					vec3 yv = vec3(0, y, tsize.y);
+					return normalize(cross(xv, -yv)).xzy;
+				}
+				vec3 getSpecular(vec3 grad) {
+					float S = max(0., dot(grad, H));
+					S = pow(S, 16.0);
+					return S * vec3(.4);
+				}
+			)
+			);*/
+		
 
 		/*auto texForB = shade2(tex, texAdapted,
 			"vec3 c = fetch3();"
