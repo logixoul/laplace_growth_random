@@ -175,7 +175,7 @@ struct SApp : AppBasic {
 					cout << "dot " << dot << endl;*/
 				if(dot < 0) {
 					img(p) += -dot * 4.0;
-					// //aaPoint(img, Vec2f(p) + grads(p), dot * 10.0f);
+					//aaPoint(img, Vec2f(p) + curvDirs(p).safeNormalized(), dot * 10.0f);
 				}
 				img_coloring(p) = dot;
 			}
@@ -226,10 +226,10 @@ struct SApp : AppBasic {
 			"vec3 fb = fetch3(tex2);"
 			"_out = .5 * f / fb;");
 		
-	tex = shade2(tex, gradientMap,
+	tex = shade2(texAdapted, gradientMap,
 			"float f = fetch1();"
-			//"f /= f + 1.0;"
-			//"f *= 1.3;"
+			"f /= f + 1.0;"
+			"f *= 1.3;"
 			//"vec3 gradientMapC = fetch3(tex2, vec2(f, 0));"
 			//"vec3 c = gradientMapC;"
 			"vec3 c = vec3(f);"
