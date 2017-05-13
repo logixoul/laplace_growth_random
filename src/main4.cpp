@@ -166,6 +166,23 @@ struct SApp : AppBasic {
 			Sleep(50);
 		//Sleep(2000);
 	}
+	// from the matrix.rotate method with hardcoded axis (1, 1, 1)
+	void rotateHue_ip( Vec3f& v, float angle )
+	{
+		typedef float T;
+		T sina = math<T>::sin(angle);
+		T cosa1 = 1.0f - math<T>::cos(angle);
+		T m = cosa1 - sina;
+		T p = cosa1 + sina;
+
+		T rx = v.x + m * v.y + p * v.z;
+		T ry = p * v.x + v.y + m * v.z;
+		T rz = m * v.x + p * v.y + v.z;
+
+		v.x = rx;
+		v.y = ry;
+		v.z = rz;
+	}
 	void updateIt() {
 		if(!pause) {
 			int ksize = 9;
@@ -200,6 +217,12 @@ struct SApp : AppBasic {
 					//aaPoint(img, Vec2f(p) + curvDirs(p).safeNormalized(), dot * 10.0f);
 				}
 			}
+			/*Array2D<Vec3f> img2(img.Size(), Vec3f::zero());
+			forxy(img2) {
+				if(grads(p).length() < .1)
+					aaPoint(img2, Vec2f(p) + grads(p) * 4.0f, img(p));
+			}
+			img = img2;*/
 			img = to01(img);
 			
 			if(mouseDown_[0])
