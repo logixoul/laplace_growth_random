@@ -207,7 +207,7 @@ struct SApp : AppBasic {
 						float w = max(0.0f, 1.0f - v.length() / r);
 						w = 3 * w * w - 2 * w * w * w;
 						w=max(0.0f,w);
-						img.wr(x, y) += 1.f * w;
+						img.wr(x, y) = lerp(img.wr(x, y), 1.0F, w);
 					}
 				}
 			}
@@ -226,10 +226,10 @@ struct SApp : AppBasic {
 			"vec3 fb = fetch3(tex2);"
 			"_out = .5 * f / fb;");
 		
-	tex = shade2(texAdapted, gradientMap,
+	tex = shade2(tex, gradientMap,
 			"float f = fetch1();"
-			"f /= f + 1.0;"
-			"f *= 1.3;"
+			//"f /= f + 1.0;"
+			//"f *= 1.3;"
 			//"vec3 gradientMapC = fetch3(tex2, vec2(f, 0));"
 			//"vec3 c = gradientMapC;"
 			"vec3 c = vec3(f);"
