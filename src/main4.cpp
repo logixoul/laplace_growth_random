@@ -214,16 +214,8 @@ struct SApp : AppBasic {
 				float dot = curvDirs(p).dot(grads(p));
 				if(dot < 0) {
 					img(p) += -dot * 3.8 * complexToColor_HSV(curvDirs(p));
-					//if(c != Vec3f::one())
-					//aaPoint(img, Vec2f(p) + curvDirs(p).safeNormalized(), dot * 10.0f);
 				}
 			}
-			/*Array2D<Vec3f> img2(img.Size(), Vec3f::zero());
-			forxy(img2) {
-				if(grads(p).length() < .1)
-					aaPoint(img2, Vec2f(p) + grads(p) * 4.0f, img(p));
-			}
-			img = img2;*/
 			img = to01(img);
 			
 			if(mouseDown_[0])
@@ -275,7 +267,7 @@ struct SApp : AppBasic {
 
 		tex = shade2(tex,
 			"vec3 c = fetch3();"
-			"c *= .7;"
+			"c *= .4;"
 			"_out = c;"
 			);
 
