@@ -189,8 +189,9 @@ struct SApp : AppBasic {
 			float sigma = sigmaFromKsize(8);
 			img = separableConvolve<Vec3f, WrapModes::GetWrapped>(img, getGaussianKernel(ksize, sigma));
 			Array2D<float> imgGrayscale(img.Size(), 0.0f);
+			float maxLen = Vec3f::one().length();
 			forxy(imgGrayscale) {
-				imgGrayscale(p) = img(p).dot(Vec3f::one() / 3.0f);
+				imgGrayscale(p) = img(p).length()/maxLen;
 			}
 			Array2D<Vec2f> curvDirs(img.Size(), Vec2f::zero());
 			auto grads = ::get_gradients(imgGrayscale);
