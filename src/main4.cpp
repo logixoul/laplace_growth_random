@@ -262,7 +262,22 @@ struct SApp : AppBasic {
 	}
 	void renderIt() {
 		auto tex = gtex(img);
-		
+
+		auto texb = gpuBlur2_4::run(tex, 1);
+
+		tex = shade2(tex, texb,
+			"vec3 f = fetch3();"
+			"vec3 fb = fetch3(tex2);"
+			"vec3 diff = f - fb;"
+			"diff = vec3(dot(diff, vec3(1.0/3.0)));"
+			"_out = f + diff * 3.0;"
+			);
+
+		tex = shade2(tex,
+			"vec3 c = fetch3();"
+			"c *= .7;"
+			"_out = c;"
+			);
 
 		gl::draw(tex, getWindowBounds());
 	}
