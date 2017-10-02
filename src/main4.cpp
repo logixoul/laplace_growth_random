@@ -17,7 +17,7 @@
 
 #define GLSL(sh) #sh
 
-int wsx=800, wsy = 800 * (800.0f / 1280.0f);
+int wsx=600, wsy = 600;
 int scale = 2;
 int sx = wsx / scale;
 int sy = wsy / scale;
@@ -246,10 +246,12 @@ struct SApp : AppBasic {
 		}
 	}
 	inline Array2D<Vec3f> to01(Array2D<Vec3f> a) {
-		auto beginIt = (float*)(a.begin());
-		auto endIt = (float*)(a.end())+2;
-		auto minn = *std::min_element(beginIt, endIt);
-		auto maxx = *std::max_element(beginIt, endIt);
+		auto sorted = a.clone();
+		auto beginIt = (float*)(sorted.begin());
+		auto endIt = (float*)(sorted.end())+2;
+		std::sort(beginIt, endIt);
+		auto minn = sorted.data[int(sorted.area*.1)];
+		auto maxx = sorted.data[int(sorted.area*.9)];
 		auto b = a.clone();
 		forxy(b) {
 			b(p) -= Vec3f::one() * minn;
@@ -264,7 +266,7 @@ struct SApp : AppBasic {
 
 		//static auto gradientMap = gl::Texture(ci::loadImage("gradient.png"));
 
-		auto texAdapted = shade2(tex, texb,
+		if(0){auto texAdapted = shade2(tex, texb,
 			"vec3 f = fetch3();"
 			"vec3 fb = fetch3(tex2);"
 			"_out = .5 * f / fb;");
@@ -282,6 +284,7 @@ struct SApp : AppBasic {
 			ShadeOpts(),
 			FileCache::get("stuff.fs")
 			);
+		}
 
 		texb = gpuBlur2_4::run(tex, 1);
 
@@ -291,6 +294,16 @@ struct SApp : AppBasic {
 			"vec3 diff = f - fb;"
 			"diff = vec3(dot(diff, vec3(1.0/3.0)));"
 			"_out = f + diff * 2.0;"
+			);
+
+		auto texGray = shade2(tex, "vec3 c = fetch3(); float f = dot(c, vec3(1.0/3.0)); _out = vec3(f); ");
+		auto texg = get_gradients_tex(texGray);
+		tex = shade2(tex, texg,
+			"vec3 c = fetch3();"
+			"vec2 g = fetch2(tex2);"
+			"float gl = length(g);"
+			"c *= pow(1.0 - gl, 5.0);"
+			"_out = c;"
 			);
 
 		/*tex = shade2(tex,
