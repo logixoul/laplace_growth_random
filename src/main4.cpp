@@ -28,7 +28,6 @@ float noiseTimeDim = 0.0f;
 float heightmapTimeDim = 0.0f;
 const int MAX_AGE = 100;
 gl::Texture texToDraw;
-bool texOverride = false;
 
 Array2D<Vec3f> img(sx, sy);
 
@@ -119,8 +118,6 @@ struct SApp : AppBasic {
 	
 	void draw()
 	{
-		::texOverride = false;
-
 		my_console::beginFrame();
 		sw::beginFrame();
 		static bool first = true;
