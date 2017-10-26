@@ -115,10 +115,6 @@ struct SApp : AppBasic {
 		direction = getMousePos() - lastm;
 		lastm = getMousePos();
 	}
-	Vec2f reflect(Vec2f const & I, Vec2f const & N)
-	{
-		return I - N * N.dot(I) * 2.0f;
-	}
 	float noiseProgressSpeed;
 	
 	void draw()
