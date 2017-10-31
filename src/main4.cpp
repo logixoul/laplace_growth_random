@@ -24,10 +24,6 @@ int sy = wsy / scale;
 bool mouseDown_[3];
 bool keys[256];
 gl::Texture::Format gtexfmt;
-float noiseTimeDim = 0.0f;
-float heightmapTimeDim = 0.0f;
-const int MAX_AGE = 100;
-gl::Texture texToDraw;
 
 Array2D<Vec3f> img(sx, sy);
 
@@ -39,10 +35,7 @@ Vec3f complexToColor_HSV(Vec2f comp) {
 	float hue = (float)M_PI+(float)atan2(comp.y,comp.x);
 	hue /= (float)(2*M_PI);
 	hue = fmod(hue + .2f, 1.0f);
-	//float lightness = comp.length();
-	//cout << complex << " --> " << color << endl;
 
-	//lightness /= lightness + 1.0f;
 	HslF hsl(hue, 1.0f, .5);
 	auto rgb = FromHSL(hsl);
 	rgb /= rgb.dot(Vec3f::one() / 3.0f);
@@ -123,10 +116,6 @@ struct SApp : AppBasic {
 		
 		renderIt();
 
-		/*float hue = 0;
-		float lightness = .5;
-		HslF hsl(hue, 1.0f, lightness);
- 		cout << "rgb=" << FromHSL(hsl) << endl;*/
 
 		/*Sleep(50);*/
 		sw::endFrame();
@@ -135,24 +124,6 @@ struct SApp : AppBasic {
 
 		if(pause)
 			Sleep(50);
-		//Sleep(2000);
-	}
-	// from the matrix.rotate method with hardcoded axis (1, 1, 1)
-	void rotateHue_ip( Vec3f& v, float angle )
-	{
-		typedef float T;
-		T sina = math<T>::sin(angle);
-		T cosa1 = 1.0f - math<T>::cos(angle);
-		T m = cosa1 - sina;
-		T p = cosa1 + sina;
-
-		T rx = v.x + m * v.y + p * v.z;
-		T ry = p * v.x + v.y + m * v.z;
-		T rz = m * v.x + p * v.y + v.z;
-
-		v.x = rx;
-		v.y = ry;
-		v.z = rz;
 	}
 	void updateIt() {
 		if(!pause) {
