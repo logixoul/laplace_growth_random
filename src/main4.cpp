@@ -5,13 +5,11 @@
 #include "shade.h"
 #include "gpgpu.h"
 #include "gpuBlur2_4.h"
-#include "cfg1.h"
-#include "sw.h"
-#include "my_console.h"
+#include "stefanfw.h"
+
 #include "hdrwrite.h"
-#include <float.h>
 #include "simplexnoise.h"
-#include "mainfunc_impl.h"
+
 #include "colorspaces.h"
 #include "easyfft.h"
 
@@ -19,150 +17,97 @@
 
 int wsx=600, wsy = 600;
 int scale = 2;
-int sx = wsx / scale;
-int sy = wsy / scale;
-bool mouseDown_[3];
-bool keys[256];
-gl::Texture::Format gtexfmt;
+int sx = wsx / ::scale;
+int sy = wsy / ::scale;
 
-Array2D<Vec3f> img(sx, sy);
+Array2D<vec3> img(sx, sy);
 
-float mouseX, mouseY;
 bool pause;
-bool keys2[256];
 
-Vec3f complexToColor_HSV(Vec2f comp) {
+
+vec3 complexToColor_HSV(vec2 comp) {
 	float hue = (float)M_PI+(float)atan2(comp.y,comp.x);
 	hue /= (float)(2*M_PI);
 	hue = fmod(hue + .2f, 1.0f);
 
 	HslF hsl(hue, 1.0f, .5);
 	auto rgb = FromHSL(hsl);
-	rgb /= rgb.dot(Vec3f::one() / 3.0f);
+	rgb /= dot(rgb, vec3(1.0) / 3.0f);
 	return rgb;
 }
 
 void updateConfig() {
 }
 
-struct SApp : AppBasic {
+struct SApp : App {
 	void setup()
 	{
-		_controlfp(_DN_FLUSH, _MCW_DN);
+		enableDenormalFlushToZero();
 
-		glClampColor(GL_CLAMP_FRAGMENT_COLOR, GL_FALSE);
-		glClampColor(GL_CLAMP_READ_COLOR, GL_FALSE);
-		glClampColor(GL_CLAMP_VERTEX_COLOR, GL_FALSE);
-		gtexfmt.setInternalFormat(hdrFormat);
+		createConsole();
+		disableGLReadClamp();
+		stefanfw::eventHandler.subscribeToEvents(*this);
 		setWindowSize(wsx, wsy);
 
-		glEnable(GL_POINT_SMOOTH);
-
-		Vec2f center = Vec2f(img.Size()) / 2.0f;
+		vec2 center = vec2(img.Size()) / 2.0f;
 		forxy(img) {
-			img(p) = Vec3f::one() * (p.distance(center) < sy / 3 ? 1 : 0);
+			img(p) = vec3(ci::randFloat(), ci::randFloat(), ci::randFloat()) * (distance(vec2(p), center) < sy / 3 ? 1.0f : 0.0f);
 		}
+	}
+	void update()
+	{
+		stefanfw::beginFrame();
+		stefanUpdate();
+		stefanDraw();
+		stefanfw::endFrame();
 	}
 	void keyDown(KeyEvent e)
 	{
-		keys[e.getChar()] = true;
-		if(e.isControlDown()&&e.getCode()!=KeyEvent::KEY_LCTRL)
-		{
-			keys2[e.getChar()] = !keys2[e.getChar()];
-			return;
-		}
-		if(keys['r'])
-		{
-		}
 		if(keys['p'] || keys['2'])
 		{
 			pause = !pause;
 		}
 	}
-	void keyUp(KeyEvent e)
-	{
-		keys[e.getChar()] = false;
-	}
-	
-	void mouseDown(MouseEvent e)
-	{
-		mouseDown_[e.isLeft() ? 0 : e.isMiddle() ? 1 : 2] = true;
-	}
-	void mouseUp(MouseEvent e)
-	{
-		mouseDown_[e.isLeft() ? 0 : e.isMiddle() ? 1 : 2] = false;
-	}
 	float noiseProgressSpeed;
 	
-	void draw()
-	{
-		my_console::beginFrame();
-		sw::beginFrame();
-		static bool first = true;
-		first = false;
-
-		wsx = getWindowSize().x;
-		wsy = getWindowSize().y;
-
-		mouseX = getMousePos().x / (float)wsx;
-		mouseY = getMousePos().y / (float)wsy;
-		/*noiseProgressSpeed=cfg1::getOpt("noiseProgressSpeed", .00008f,
-			[&]() { return keys['s']; },
-			[&]() { return expRange(mouseY, 0.01f, 100.0f); });*/
-		
-		gl::clear(Color(0, 0, 0));
-
-		updateIt();
-		
-		renderIt();
-
-
-		/*Sleep(50);*/
-		sw::endFrame();
-		cfg1::print();
-		my_console::endFrame();
-
-		if(pause)
-			Sleep(50);
-	}
-	void updateIt() {
+	void stefanUpdate() {
 		if(!pause) {
 			int ksize = 9;
 			float sigma = sigmaFromKsize(8);
-			img = separableConvolve<Vec3f, WrapModes::GetWrapped>(img, getGaussianKernel(ksize, sigma));
-			Array2D<float> imgGrayscale(img.Size(), 0.0f);
-			float maxLen = Vec3f::one().length();
+			img = separableConvolve<vec3, WrapModes::GetWrapped>(img, getGaussianKernel(ksize, sigma));
+			Array2D<float> imgGrayscale(img.Size());
+			float maxLen = length(vec3(1.0f));
 			forxy(imgGrayscale) {
-				imgGrayscale(p) = img(p).length()/maxLen;
+				imgGrayscale(p) = length(img(p))/maxLen;
 			}
-			Array2D<Vec2f> curvDirs(img.Size(), Vec2f::zero());
+			Array2D<vec2> curvDirs(img.Size());
 			auto grads = ::get_gradients(imgGrayscale);
 			for(int x = 0; x < sx; x++)
 			{
 				for(int y = 0; y < sy; y++)
 				{
-					Vec2f p = Vec2f(x,y);
-					Vec2f grad = grads(x, y).safeNormalized();
-					grad = Vec2f(-grad.y, grad.x);;
-					Vec2f grad_a = getBilinear(grads, p+grad).safeNormalized();
-					grad_a = -Vec2f(-grad_a.y, grad_a.x);
-					Vec2f grad_b = getBilinear(grads, p-grad).safeNormalized();
-					grad_b = Vec2f(-grad_b.y, grad_b.x);
-					Vec2f dir = grad_a + grad_b;
+					vec2 p = vec2(x,y);
+					vec2 grad = safeNormalized(grads(x, y));
+					grad = vec2(-grad.y, grad.x);;
+					vec2 grad_a = safeNormalized(getBilinear(grads, p+grad));
+					grad_a = -vec2(-grad_a.y, grad_a.x);
+					vec2 grad_b = safeNormalized(getBilinear(grads, p-grad));
+					grad_b = vec2(-grad_b.y, grad_b.x);
+					vec2 dir = grad_a + grad_b;
 					curvDirs(x, y) = dir;
 				}
 			}
 			forxy(img) {
-				float dot = curvDirs(p).dot(grads(p));
+				float dot = glm::dot(curvDirs(p), grads(p));
 				if(dot < 0) {
-					img(p) += -dot * 3.8 * complexToColor_HSV(curvDirs(p));
+					img(p) += -dot * 3.8f * complexToColor_HSV(curvDirs(p));
 				}
 			}
 			img = to01(img);
 			
 			if(mouseDown_[0])
 			{
-				Vec2f scaledm = Vec2f(mouseX * (float)sx, mouseY * (float)sy);
+				vec2 scaledm = vec2(mouseX * (float)sx, mouseY * (float)sy);
 				Area a(scaledm, scaledm);
 				int r = 10;
 				a.expand(r, r);
@@ -170,17 +115,20 @@ struct SApp : AppBasic {
 				{
 					for(int y = a.y1; y <= a.y2; y++)
 					{
-						Vec2f v = Vec2f(x, y) - scaledm;
-						float w = max(0.0f, 1.0f - v.length() / r);
+						vec2 v = vec2(x, y) - scaledm;
+						float w = max(0.0f, 1.0f - length(v) / r);
 						w=max(0.0f,w);
 						w = 3 * w * w - 2 * w * w * w;
-						img.wr(x, y) = lerp(img.wr(x, y), Vec3f::one(), w);
+						img.wr(x, y) = lerp(img.wr(x, y), vec3(1.0f), w);
 					}
 				}
 			}
 		}
+
+		if (pause)
+			Sleep(50);
 	}
-	inline Array2D<Vec3f> to01(Array2D<Vec3f> a) {
+	inline Array2D<vec3> to01(Array2D<vec3> a) {
 		auto sorted = a.clone();
 		auto beginIt = (float*)(sorted.begin());
 		auto endIt = (float*)(sorted.end())+2;
@@ -189,12 +137,16 @@ struct SApp : AppBasic {
 		auto maxx = sorted.data[int(sorted.area*.9)];
 		auto b = a.clone();
 		forxy(b) {
-			b(p) -= Vec3f::one() * minn;
-			b(p) /= Vec3f::one() * (maxx - minn);
+			b(p) -= vec3(1.0f) * minn;
+			b(p) /= vec3(1.0f) * (maxx - minn);
 		}
 		return b;
 	}
-	void renderIt() {
+	void stefanDraw() {
+		gl::clear(Color(0, 0, 0));
+
+		gl::setMatricesWindow(getWindowSize(), false);
+
 		auto tex = gtex(img);
 
 		auto texb = gpuBlur2_4::run(tex, 1);
@@ -217,7 +169,7 @@ struct SApp : AppBasic {
 	}
 #endif
 };
-int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
-	return mainFuncImpl(new SApp());
-}
+
+		
+CINDER_APP(SApp, RendererGl)
 
